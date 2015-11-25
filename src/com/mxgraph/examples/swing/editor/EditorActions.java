@@ -2399,23 +2399,163 @@ public class EditorActions
                 if(UNDEC[i]){
                     System.out.print(nodesMap.get(i).getValue() + " ");
                 }                    
-            }          
-            
-            
-            
-       
-            
-            
-            
-        }
+            }                
+        }        
         }
         /**
  * 
  */
+        
+        public static class Labelling {
+            boolean[] IN, OUT, UNDEC;
+            int nodes, sizeIN;
+            
+            Labelling(int n) {
+                nodes = n;
+                IN = new boolean[nodes + 1];
+                OUT = new boolean[nodes + 1];
+                UNDEC = new boolean[nodes + 1];
+            }
+            
+            public void allIN () {
+                for(int i = 1; i <= nodes; i++) {
+                    IN[i] = true;
+                }
+                sizeIN = nodes;
+            } 
+            
+            public boolean[] getIN() {
+                return IN;
+            }
+            public boolean getIN(int i) {
+                return IN[i];
+            }
+            public void setIN(int i, boolean b) {
+                IN[i] = b;
+            }
+            public int getINSize() {
+                return sizeIN;
+            }
+            public void setINSize(int i) {
+                sizeIN += i;
+            }
+            public boolean[] getOUT() {
+                return OUT;
+            }
+            public boolean getOUT(int i) {
+                return OUT[i];
+            }
+            public void setOUT(int i, boolean b) {
+                OUT[i] = b;
+            }
+            public boolean[] getUNDEC() {
+                return UNDEC;
+            }
+            public boolean getUNDEC(int i) {
+                return UNDEC[i];
+            }
+            public void setUNDEC(int i, boolean b) {
+                UNDEC[i] = b;
+            }
+            
+            public void illegal(int idx, int[][] graph) {
+                boolean illegal = true;
+                for(int i = 1; i <= nodes; i++) {
+                   if(graph[i][idx] == 1 && IN[i])
+                        illegal = false;
+                }
+                if(illegal){
+                    OUT[idx] = false;
+                    UNDEC[idx] = true;
+                }
+            }
+            
+            public void illegallyOutArgs(Node n, int[][] graph) {
+                
+                int idx = n.getId();
+                illegal(idx, graph);
+                for(int i = 1; i <= nodes; i++) {
+                    if(graph[idx][i] == 1)
+                        illegal(i, graph);
+                }
+            }
+            
+            public boolean checkPotential(Labelling labelling) {
+                if(this.sizeIN < labelling.sizeIN)
+                    return false;
+                return true;
+            }
+            
+            public int getIllegalArgument(Labelling labelling, int[][] graph) {
+                for(int i = 1; i <= nodes; i++) {
+                    
+                }
+            }
+            
+        }     
+                
         public static class PreferredAlgAction extends AbstractAction {
+            
+            int[][] graphMatrix;
+            ArrayList<Labelling> candidateLabellings = new ArrayList<Labelling>();
+            Map<Integer, Node> nodesMap;
+            
+            public Labelling transitionStep (Labelling labelling, Node node) {
+                labelling.setIN(node.getId(), false);
+                labelling.setINSize(-1);
+                labelling.setOUT(node.getId(), true);
+                labelling.illegallyOutArgs(node, graphMatrix);
+                
+                return labelling;
+            }
+            
+            public void preferredLabelling(Labelling labelling) {
+                
+                boolean candidatePotential = true;
+                for(Labelling l: candidateLabellings)
+                    if(!labelling.checkPotential(l))
+                        candidatePotential = false;
+                if(!candidatePotential)
+                    return;
+                
+                
+            }
 
         public void actionPerformed(ActionEvent e) {
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            
+            BasicGraphEditor test = getEditor(e);
+            
+            mxGraphComponent graphComponent = getEditor(e).getGraphComponent();
+            mxGraph graph = graphComponent.getGraph();
+            graph.clearSelection(); 
+            graph.selectAll();
+            Object[] cells = graph.getSelectionCells(); //here you have all cells
+            
+            int nodes = 0;
+            ArrayList<mxCell> edges = new ArrayList<mxCell>();
+            Map<Integer, Node> node = new HashMap<Integer, Node>();
+            nodesMap = new HashMap<Integer, Node>();
+            
+            for (Object c : cells) {
+                mxCell cell = (mxCell) c;
+                if(cell.isVertex()) {
+                    nodes++;
+                    Node n = new Node((String) cell.getValue(), Integer.parseInt(cell.getId()));
+                    node.put(Integer.parseInt(cell.getId()), n);
+                    nodesMap.put(n.getId(), n);
+                }
+                if(cell.isEdge())
+                    edges.add(cell);             
+            }
+            
+            graphMatrix = new int[nodes + 1][nodes + 1];  
+            
+            for(mxCell edge: edges) {
+                graphMatrix[node.get(Integer.parseInt(edge.getSource().getId())).getId()][node.get(Integer.parseInt(edge.getTarget().getId())).getId()] = 1;
+            }           
+            
+            
+            //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
         }
             
         }
