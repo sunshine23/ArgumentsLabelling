@@ -2470,12 +2470,10 @@ public class EditorActions
                 }
             }
             
-            public void illegallyOutArgs(Node n, int[][] graph) {
-                
-                int idx = n.getId();
-                illegal(idx, graph);
+            public void illegallyOutArgs(int n, int[][] graph) {
+                illegal(n, graph);
                 for(int i = 1; i <= nodes; i++) {
-                    if(graph[idx][i] == 1)
+                    if(graph[n][i] == 1)
                         illegal(i, graph);
                 }
             }
@@ -2486,10 +2484,55 @@ public class EditorActions
                 return true;
             }
             
-            public int getIllegalArgument(Labelling labelling, int[][] graph) {
+            public int getIllegalArgument(int[][] graph) {
                 for(int i = 1; i <= nodes; i++) {
-                    
+                    for(int j = 1; j <= nodes; j++) {
+                        if(graph[j][i] == 1 && IN[j] && IN[i])
+                            return i;
+                    }
+                }                
+                return -1;
+            }
+            
+            public ArrayList<Integer> getIllegalArguments(int[][] graph) {
+                ArrayList<Integer> illegalArgs = new ArrayList<Integer>();
+                for(int i = 1; i <= nodes; i++) {
+                    for(int j = 1; j <= nodes; j++) {
+                        if(graph[j][i] == 1 && IN[j] && IN[i])
+                            illegalArgs.add(i);
+                    }
+                }                
+                return illegalArgs;
+            }
+            
+            public boolean legallyIN(int node, int[][] graph) {
+                for(int i = 1; i <= nodes; i++) {
+                    if(graph[i][node] == 1 && IN[i])
+                        return false;
                 }
+                return true;
+            }
+            
+            public int getSuperIllegalArgument(int[][] graph) {
+                ArrayList<Integer> illegalArgs = getIllegalArguments(graph);
+                for(int arg: illegalArgs) {
+                    for(int i = 1; i <= nodes; i++) {
+                        if(graph[i][arg] == 1 && legallyIN(i, graph))
+                            return arg;
+                        if(graph[i][arg] == 1 && UNDEC[i])
+                            return arg;
+                    }
+                }
+                return -1;
+            }
+            
+            public Labelling transitionStep (Labelling labelling, int node, int[][] graph) {
+                labelling.setIN(node, false);
+                labelling.setINSize(-1);
+                labelling.setOUT(node, true);
+                labelling.illegallyOutArgs(node, graph);
+                
+                return labelling;
             }
             
         }     
@@ -2500,14 +2543,7 @@ public class EditorActions
             ArrayList<Labelling> candidateLabellings = new ArrayList<Labelling>();
             Map<Integer, Node> nodesMap;
             
-            public Labelling transitionStep (Labelling labelling, Node node) {
-                labelling.setIN(node.getId(), false);
-                labelling.setINSize(-1);
-                labelling.setOUT(node.getId(), true);
-                labelling.illegallyOutArgs(node, graphMatrix);
-                
-                return labelling;
-            }
+            
             
             public void preferredLabelling(Labelling labelling) {
                 
@@ -2517,6 +2553,25 @@ public class EditorActions
                         candidatePotential = false;
                 if(!candidatePotential)
                     return;
+                if(labelling.getIllegalArgument(graphMatrix) == -1) {
+                    for(Labelling l: candidateLabellings) {
+                        if(l.getINSize() < labelling.getINSize()) {
+                            candidateLabellings.remove(l);
+                        }
+                    }
+                    candidateLabellings.add(labelling);
+                    return;
+                } else {
+                    int arg = labelling.getSuperIllegalArgument(graphMatrix);
+                    if(arg != -1) {
+                        preferredLabelling(labelling.transitionStep(labelling, arg, graphMatrix));
+                    } else {
+                        ArrayList<Integer> illegalArgs = labelling.getIllegalArguments(graphMatrix);
+                        for(int n: illegalArgs) {
+                            preferredLabelling(labelling.transitionStep(labelling, n, graphMatrix));
+                        }
+                    }
+                }               
                 
                 
             }
@@ -2554,7 +2609,30 @@ public class EditorActions
                 graphMatrix[node.get(Integer.parseInt(edge.getSource().getId())).getId()][node.get(Integer.parseInt(edge.getTarget().getId())).getId()] = 1;
             }           
             
-            
+            Labelling labelling = new Labelling(nodes);
+            labelling.allIN();
+            preferredLabelling(labelling);
+            for(Labelling candidate: candidateLabellings) {
+                boolean[] IN = candidate.getIN();
+                boolean[] OUT = candidate.getOUT();
+                boolean[] UNDEC = candidate.getUNDEC();
+                
+                System.out.println("Arguments which are in: ");
+                for(int i = 1; i <= nodes; i++)
+                    if(IN[i])
+                        System.out.print(nodesMap.get(i).getValue() + " ");
+                System.out.println();
+                System.out.println("Arguments which are out: ");
+                for(int i = 1; i <= nodes; i++)
+                    if(OUT[i])
+                        System.out.print(nodesMap.get(i).getValue() + " ");
+                System.out.println();
+                System.out.println("Arguments which are undec: ");
+                for(int i = 1; i <= nodes; i++)
+                    if(UNDEC[i])
+                        System.out.print(nodesMap.get(i).getValue() + " ");
+                    
+            }
             //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
         }
             
