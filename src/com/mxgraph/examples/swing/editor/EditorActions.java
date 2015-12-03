@@ -72,10 +72,13 @@ import com.mxgraph.util.png.mxPngEncodeParam;
 import com.mxgraph.util.png.mxPngImageEncoder;
 import com.mxgraph.util.png.mxPngTextDecoder;
 import com.mxgraph.view.mxGraph;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -2406,7 +2409,7 @@ public class EditorActions
  * 
  */
         
-        public static class Labelling {
+        public static class Labelling implements Cloneable {
             boolean[] IN, OUT, UNDEC;
             int nodes, sizeIN;
             
@@ -2415,6 +2418,25 @@ public class EditorActions
                 IN = new boolean[nodes + 1];
                 OUT = new boolean[nodes + 1];
                 UNDEC = new boolean[nodes + 1];
+            }
+            
+            Labelling(Labelling label) {
+                nodes = label.getNodes();
+                IN = new boolean[nodes + 1];
+                OUT = new boolean[nodes + 1];
+                UNDEC = new boolean[nodes + 1];
+                for(int i = 1; i <= nodes; i++) {
+                    if(label.getIN(i) == true)
+                        IN[i] = true;
+                    if(label.getOUT(i) == true)
+                        OUT[i] = true;
+                    if(label.getUNDEC(i) == true)
+                        UNDEC[i] = true;
+                }
+            }
+            
+            public int getNodes() {
+                return nodes;
             }
             
             public void allIN () {
@@ -2473,13 +2495,28 @@ public class EditorActions
             public void illegallyOutArgs(int n, int[][] graph) {
                 illegal(n, graph);
                 for(int i = 1; i <= nodes; i++) {
-                    if(graph[n][i] == 1)
+                    if(graph[n][i] == 1 && OUT[i])
                         illegal(i, graph);
                 }
             }
             
+            public boolean isSubset(Labelling labelling) {
+                ArrayList<Integer> label = new ArrayList<Integer>();
+                ArrayList<Integer> candidateLabel = new ArrayList<Integer>();
+                for(int i = 1; i <= nodes; i++){
+                    if(IN[i] == true)
+                        label.add(i);
+                    if(labelling.getIN(i) == true)
+                        candidateLabel.add(i);
+                }
+                if(candidateLabel.containsAll(label))
+                    return true;
+                else
+                    return false;
+            }
+            
             public boolean checkPotential(Labelling labelling) {
-                if(this.sizeIN < labelling.sizeIN)
+                if(this.isSubset(labelling))
                     return false;
                 return true;
             }
@@ -2513,6 +2550,18 @@ public class EditorActions
                 return true;
             }
             
+            public ArrayList<Integer> getSuperIllegalArguments(int[][] graph) {
+                ArrayList<Integer> illegalArgs = getIllegalArguments(graph);
+                ArrayList<Integer> superIllegalArgs = new ArrayList<Integer>();
+                for(int arg: illegalArgs) {
+                    for(int i = 1; i <= nodes; i++) {
+                        if((graph[i][arg] == 1 && legallyIN(i, graph)) || (graph[i][arg] == 1 && UNDEC[i]))
+                            superIllegalArgs.add(arg);
+                    }
+                }
+                return superIllegalArgs;
+            }
+            
             public int getSuperIllegalArgument(int[][] graph) {
                 ArrayList<Integer> illegalArgs = getIllegalArguments(graph);
                 for(int arg: illegalArgs) {
@@ -2535,14 +2584,23 @@ public class EditorActions
                 return labelling;
             }
             
-        }     
+            public Labelling createSolution (Labelling labelling) {
+                Labelling label = labelling;
+                return label;
+            }
+            
+            @Override
+            public Object clone() throws CloneNotSupportedException {
+        return super.clone();
+    }
+            
+        } 
                 
         public static class PreferredAlgAction extends AbstractAction {
             
             int[][] graphMatrix;
             ArrayList<Labelling> candidateLabellings = new ArrayList<Labelling>();
-            Map<Integer, Node> nodesMap;
-            
+            Map<Integer, Node> nodesMap; 
             
             
             public void preferredLabelling(Labelling labelling) {
@@ -2555,20 +2613,28 @@ public class EditorActions
                     return;
                 if(labelling.getIllegalArgument(graphMatrix) == -1) {
                     for(Labelling l: candidateLabellings) {
-                        if(l.getINSize() < labelling.getINSize()) {
+                        if(l.isSubset(labelling)) {
                             candidateLabellings.remove(l);
                         }
                     }
-                    candidateLabellings.add(labelling);
+                    
+                    candidateLabellings.add(new Labelling(labelling));
                     return;
                 } else {
                     int arg = labelling.getSuperIllegalArgument(graphMatrix);
                     if(arg != -1) {
-                        preferredLabelling(labelling.transitionStep(labelling, arg, graphMatrix));
+                        ArrayList<Integer> illegalArgs = labelling.getSuperIllegalArguments(graphMatrix);
+                        for(int n: illegalArgs) {
+                        Labelling temp = new Labelling(labelling);
+                        preferredLabelling(labelling.transitionStep(labelling, n, graphMatrix));
+                        labelling = new Labelling(temp);                        
+                        }
                     } else {
                         ArrayList<Integer> illegalArgs = labelling.getIllegalArguments(graphMatrix);
-                        for(int n: illegalArgs) {
-                            preferredLabelling(labelling.transitionStep(labelling, n, graphMatrix));
+                        for(int n: illegalArgs) {                 
+                            Labelling temp = new Labelling(labelling);
+                            preferredLabelling(labelling.transitionStep(labelling, n, graphMatrix)); 
+                            labelling = new Labelling(temp);
                         }
                     }
                 }               
@@ -2612,6 +2678,7 @@ public class EditorActions
             Labelling labelling = new Labelling(nodes);
             labelling.allIN();
             preferredLabelling(labelling);
+                
             for(Labelling candidate: candidateLabellings) {
                 boolean[] IN = candidate.getIN();
                 boolean[] OUT = candidate.getOUT();
